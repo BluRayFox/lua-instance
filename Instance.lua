@@ -307,7 +307,7 @@ local function setAttribute(Inst, Att, Value)
     local Attributes = InstPrivate.Attributes
     Attributes[Att] = Value
 
-    fireEvent(Inst 'AttributeChanged', Att)
+    fireEvent(Inst, 'AttributeChanged', Att)
 end
 
 local function getAttribute(Inst, Att)

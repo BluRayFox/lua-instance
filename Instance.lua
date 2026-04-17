@@ -5,6 +5,7 @@
 ]]
 local Signal = require('Engine.RBXScriptSignal')
 
+local Constructor = {}
 local Classes = {}
 local Private = setmetatable({}, { __mode = "k" }) -- weak keys
 
@@ -369,7 +370,38 @@ local function getFullName(Inst)
     return table.concat(fullName, ".")
 end
 
-local Constructor = {}
+local function clone(Inst)
+    local Pr = getPrivate(Inst)
+    assert(Pr, "Instance was not made properly")
+
+    local new = Constructor.new(Inst.ClassName)
+
+    local newPr = getPrivate(new)
+
+    for name, prop in pairs(Pr.Properties) do
+        if not prop.ReadOnly then
+            addInstanceProperty(new, name, prop.Type, prop.Value, prop.NilAllowed, prop.ReadOnly)
+        else
+            addInstanceProperty(new, name, prop.Type, prop.Value, prop.NilAllowed, prop.ReadOnly)
+        end
+    end
+
+    for k, v in pairs(Pr.Attributes) do
+        newPr.Attributes[k] = v
+    end
+
+    for tag in pairs(Pr.Tags) do
+        newPr.Tags[tag] = true
+    end
+
+    for _, child in ipairs(Pr.Children) do
+        local childClone = clone(child)
+        childClone.Parent = new
+    end
+
+    return new
+end
+
 local Instance = {}
 local InstanceMt = {
     __index = function(self, key)
@@ -457,5 +489,8 @@ end
 function Instance:Destroy()
     destroy(self)
 end
+
+Instance.Clone = clone
+
 
 return Constructor

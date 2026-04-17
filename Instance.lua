@@ -6,7 +6,13 @@
 local Signal = require('Engine.RBXScriptSignal')
 
 local Classes = {}
-local Private = {}
+local Private = setmetatable({}, { __mode = "k" }) -- weak keys
+
+local function clearTable(t)
+    for k in pairs(t) do
+        t[k] = nil
+    end
+end
 
 local function createPrivate(Inst)
     Private[Inst] = {
@@ -64,18 +70,21 @@ local function fireEvent(Inst, Name, ...)
     end
 end
 
+
 local function destroyAllEvents(Inst, ignoreList)
     local Pr = getPrivate(Inst)
     if not Pr then return end
 
-    local Events = Pr.Events
-
-    for Name, Event in pairs(Events) do
+    for Name, Event in pairs(Pr.Events) do
         if not ignoreList or not ignoreList[Name] then
-            Event:Destroy()
+            if Event and Event.Destroy then
+                Event:Destroy()
+            end
+            Pr.Events[Name] = nil
         end
     end
 end
+
 
 local function getChildren(Inst)
     local Pr = getPrivate(Inst)
@@ -94,10 +103,11 @@ local function addChildRaw(Inst, ChildInst)
 end
 
 local function removeChildRaw(Inst, ChildInst)
+    if not Inst then return end
     local Pr = getPrivate(Inst)
     if not Pr then return end
 
-    for i, child in ipairs(Pr.Children)do
+    for i, child in ipairs(Pr.Children) do
         if child == ChildInst then
             table.remove(Pr.Children, i)
             break
@@ -106,7 +116,6 @@ local function removeChildRaw(Inst, ChildInst)
 
     fireEvent(Inst, 'ChildRemoved', ChildInst)
 end
-
 local function findFirstChild(Inst, Name, strict)
     local InstPrivate = getPrivate(Inst)
     assert(InstPrivate, "Instance was not made properly")
@@ -151,11 +160,20 @@ local function setParent(Inst, newParent)
     local Pr = getPrivate(Inst)
     if not Pr then return end
 
-    local OldParent = Pr.Parent
-    removeChildRaw(OldParent, Inst)
+    local oldParent = Pr.Parent
+    if oldParent == newParent then
+        return
+    end
+
+    if oldParent then
+        removeChildRaw(oldParent, Inst)
+    end
 
     Pr.Parent = newParent
-    addChildRaw(newParent, Inst)
+
+    if newParent then
+        addChildRaw(newParent, Inst)
+    end
 end
 
 local function destroy(Inst)
@@ -287,6 +305,8 @@ local function setAttribute(Inst, Att, Value)
 
     local Attributes = InstPrivate.Attributes
     Attributes[Att] = Value
+
+    fireEvent(Inst 'AttributeChanged', Att)
 end
 
 local function getAttribute(Inst, Att)
@@ -354,30 +374,46 @@ local Instance = {}
 local InstanceMt = {
     __index = function(self, key)
         local instMethod = Instance[key]
-        local method = getMethodOfInstance(self, key)
-        local property = getPropertyValueOfInstance(self, key)
-        local child = findFirstChild(self, key)
+        if instMethod then
+            return instMethod
+        end
 
-        return instMethod or method or property or child
+        local method = getMethodOfInstance(self, key)
+        if method then
+            return method
+        end
+
+        local event = getEvent(self, key)
+        if event then
+            return event
+        end
+
+        local property = getPropertyValueOfInstance(self, key)
+        if property ~= nil then
+            return property
+        end
+
+        return findFirstChild(self, key)
     end,
 
     __newindex = function(self, key, value)
         setPropertyValueOfInstance(self, key, value)
     end
-
-
 }
 
-function Constructor.new(ClassName)
+function Constructor.new(ClassName, Parent)
     local self = setmetatable({}, InstanceMt)
     createPrivate(self)
     addInstanceProperty(self, 'Name', 'string', ClassName, false, false)
+    
     addEvent(self, 'ChildAdded')
     addEvent(self, 'ChildRemoved')
-
     addEvent(self, 'Destroying')
-
     addEvent(self, 'AttributeChanged')
+
+    if Parent then
+        setParent(self, Parent)
+    end
 
     return self
 end

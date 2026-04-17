@@ -3,7 +3,7 @@
     Roblox Instance System Re Implementation in pure LUA
 
 ]]
-local Signal = require('Engine.XNNScriptSignal')
+local Signal = require('Engine.RBXScriptSignal')
 
 local Classes = {}
 local Private = {}
